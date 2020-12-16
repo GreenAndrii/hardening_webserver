@@ -27,7 +27,7 @@
       - tcpdump
       - nmap-ncat
       - wpa_supplicant
-      
+
     unnecessary_users:
       - postfix
       - ftp
@@ -160,8 +160,13 @@
       package:
         name: nginx
         state: latest
-      notify: restart nginx
       
+    - name: start nginx
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+        
     - name: Add nginx ports 80 and 443 to public zone
       firewalld:
         zone: public
