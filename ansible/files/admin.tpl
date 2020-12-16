@@ -1,0 +1,1 @@
+admin3289 ALL=(ALL) NOPASSWD:ALL

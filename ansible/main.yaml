@@ -1,0 +1,196 @@
+# This playbook apply hardening for RHEL7 web sever
+# My steps:
+# 1. Update system
+# 2. Add another sudouser
+# 3. Deny root login, change sshd_config
+# 4. Change firewalld: add ssh service to internal zone
+# 5. Remove undesirable packages, such as telnet, postfix
+# 6. Install nginx
+
+---
+- name: Hardening RHEL7 web server
+  hosts: all
+  become: yes
+  vars:
+    key_path: "{{ lookup('env','NGINX_KEY') }}"
+    allowed_ssh_networks:
+      - 172.31.0.0/16
+    unnecessary_services:
+      - postfix
+      - telnet
+      - rpcbind
+    unnecessary_software:
+      - tcpdump
+      - nmap-ncat
+      - wpa_supplicant
+    unnecessary_users:
+      - postfix
+      - ftp
+      - nfsnobody
+      - games
+      - mail
+      - lp
+
+
+  tasks:
+    - name: Update all software
+      package:
+        name: '*'
+        state: latest
+    
+    - name: Install libpam-pwquality
+      package:
+        name: libpwquality
+        state: present
+
+    - name: validate input password
+      pamd:
+          control: requisite 
+          name: password-auth-ac 
+          type: password
+          module_path: pam_pwquality.so
+          path: /etc/pam.d/ 
+          module_arguments: "reject_username enforce_for_root try_first_pass local_users_only retry=3 authtok_type=" 
+    
+    - name: Add admin group
+      group:
+        name: admin3745
+        state: present
+
+    - name: Add local user
+      user:
+        name: admin3289
+        group: admin3745
+        shell: /bin/bash
+        home: /home/admin3289
+        create_home: yes
+        state: present
+
+    - name: Add SSH public key for user
+      authorized_key:
+        user: admin3289
+        key: "{{ lookup('file', '{{ key_path }}') }}"
+        state: present
+
+    - name: Add sudoer rule for local user
+      copy:
+        dest: /etc/sudoers.d/00-admin
+        src: files/admin.tpl
+        owner: root
+        group: root
+        mode: 0440
+        validate: /usr/sbin/visudo -csf %s
+    
+    - name: Add hardened SSH config
+      copy:
+        dest: /etc/ssh/sshd_config
+        src: files/sshd_config
+        owner: root
+        group: root
+        mode: 0600
+      notify: Reload SSH
+
+    - name: install firewalld
+      package:
+        name: firewalld
+        state: latest
+
+    - name: start firewalld
+      service:
+        name: firewalld
+        state: started
+        enabled: yes
+
+    - name: Add SSH port to internal zone
+      firewalld:
+        zone: internal
+        service: ssh
+        state: enabled
+        immediate: yes
+        permanent: yes
+
+    - name: Add permitted networks to internal zone
+      firewalld:
+        zone: internal
+        source: "{{ item }}"
+        state: enabled
+        immediate: yes
+        permanent: yes
+      loop: "{{ allowed_ssh_networks }}"
+
+    - name: Drop services from the public zone
+      firewalld:
+        zone: public
+        service: "{{ item }}"
+        state: disabled
+        immediate: yes
+        permanent: yes
+      loop: ["ssh", "dhcpv6-client", ]
+      ignore_errors: yes
+
+    - name: Remove undesirable packages
+      package:
+        name: "{{ unnecessary_software }}"
+        state: absent
+
+    - name: Stop and disable unnecessary services
+      service:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      loop: "{{ unnecessary_services }}"
+      ignore_errors: yes   
+
+    - name: test if SELinux is running
+      command: getenforce
+      register: sestatus
+      changed_when: false
+
+    - name: add epel repo
+      yum:
+        name: epel-release
+        state: present
+
+    # - name: Add repository epel for RHEL7
+    #   yum_repository:
+    #     name: epel
+    #     description: EPEL YUM repo
+    #     baseurl: https://download.fedoraproject.org/pub/epel/$releasever/$basearch/
+
+    - name: add cache dir
+      file:
+        path: /opt/cache
+        state: directory
+
+    - name: install nginx
+      package:
+        name: nginx
+        state: latest
+      notify: restart nginx
+      
+    - name: Add nginx ports 80 and 443 to public zone
+      firewalld:
+        zone: public
+        service: {{ item }}
+        state: enabled
+        immediate: yes
+        permanent: yes
+      loop: ["http", "https" ]
+
+    - name: delete unnecessary users
+      user:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ unnecessary_users }}"
+      ignore_errors: yes
+
+  handlers:
+  - name: Reload SSH
+    service:
+      name: sshd
+      state: reloaded
+
+  - name: restart nginx
+    service:
+      name: nginx
+      state: restarted
