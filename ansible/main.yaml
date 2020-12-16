@@ -38,20 +38,6 @@
         name: '*'
         state: latest
     
-    - name: Install libpam-pwquality
-      package:
-        name: libpwquality
-        state: present
-
-    - name: validate input password
-      pamd:
-          control: requisite 
-          name: password-auth-ac 
-          type: password
-          module_path: pam_pwquality.so
-          path: /etc/pam.d/ 
-          module_arguments: "reject_username enforce_for_root try_first_pass local_users_only retry=3 authtok_type=" 
-    
     - name: Add admin group
       group:
         name: admin3745
@@ -171,7 +157,7 @@
     - name: Add nginx ports 80 and 443 to public zone
       firewalld:
         zone: public
-        service: {{ item }}
+        service: "{{ item }}"
         state: enabled
         immediate: yes
         permanent: yes
@@ -183,6 +169,18 @@
         state: absent
       loop: "{{ unnecessary_users }}"
       ignore_errors: yes
+
+    - name: Set a login banner
+      copy:
+        dest: "{{ item }}"
+        src: files/issue.tpl
+        owner: root
+        group: root
+        mode: 0644
+      loop:
+        - /etc/issue
+        - /etc/issue.net
+    
 
   handlers:
   - name: Reload SSH
