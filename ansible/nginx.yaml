@@ -1,0 +1,38 @@
+# Hardening Nginx web server
+---
+- name: Hardening Nginx web server
+  hosts: all
+  become: yes
+  vars:
+    unused_modules:
+      - http_dav_module
+    listen_http: 80
+    listen_https: 443
+    nginx_user: nginx
+    worker_processes: auto
+    worker_connections: 512
+
+  tasks:
+    - name: create additional configuration
+      template:
+        src: "files/nginx.conf.j2"
+        dest: "/etc/nginx/conf.d/90.hardening.conf"
+        mode: '0600'
+        owner: "root"
+        group: "root"
+      notify: restart nginx
+
+    - name: delete unusing configuration
+      file:
+        path: /usr/share/nginx/modules/{{ item }}.conf
+        state: absent
+      loop: "{{ unused_modules }}"
+    
+    - name: delete unusing modules
+      file:
+        path: /usr/lib64/nginx/modules/{{ item }}.so
+        state: absent
+      loop: "{{ unused_modules }}"
+
+
+

@@ -19,10 +19,15 @@
       - postfix
       - telnet
       - rpcbind
+      - xinetd # 2.1.1 Ensure xinetd is not installed
+      - gdm # 1.10 Ensure GDM is removed
+      - at # 5.1.9 Ensure at is restricted to authorized users
+      
     unnecessary_software:
       - tcpdump
       - nmap-ncat
       - wpa_supplicant
+      
     unnecessary_users:
       - postfix
       - ftp
@@ -38,6 +43,9 @@
         name: '*'
         state: latest
     
+    - name: 5 Access, Authentication and Authorization
+      import_tasks: 5_access_authentication_authorization.yaml
+
     - name: Add admin group
       group:
         name: admin3745
