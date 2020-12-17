@@ -1,5 +1,5 @@
+webservers:
 %{ for id in range(instances_number) ~}
-group_${id}:
   hosts:
     host_${id}:
       ansible_host: ${hw1_stack["${id}"]}

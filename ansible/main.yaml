@@ -11,30 +11,6 @@
 - name: Hardening RHEL7 web server
   hosts: all
   become: yes
-  vars:
-    key_path: "{{ lookup('env','NGINX_KEY') }}"
-    allowed_ssh_networks:
-      - 172.31.0.0/16
-    unnecessary_services:
-      - postfix
-      - telnet
-      - rpcbind
-      - xinetd # 2.1.1 Ensure xinetd is not installed
-      - gdm # 1.10 Ensure GDM is removed
-      - at # 5.1.9 Ensure at is restricted to authorized users
-      
-    unnecessary_software:
-      - tcpdump
-      - nmap-ncat
-      - wpa_supplicant
-
-    unnecessary_users:
-      - postfix
-      - ftp
-      - nfsnobody
-      - games
-      - mail
-      - lp
 
 
   tasks:
@@ -42,34 +18,39 @@
       package:
         name: '*'
         state: latest
+
+    - name: add epel repo
+      yum:
+        name: epel-release
+        state: present
     
     - name: 5 Access, Authentication and Authorization
       import_tasks: 5_access_authentication_authorization.yaml
 
     - name: Add admin group
       group:
-        name: admin3745
+        name: "{{ centos_user }}"
         state: present
 
     - name: Add local user
       user:
-        name: admin3289
-        group: admin3745
+        name: "{{ centos_user }}"
+        group: "{{ centos_user }}"
         shell: /bin/bash
-        home: /home/admin3289
+        home: /home/{{ centos_user }}
         create_home: yes
         state: present
 
     - name: Add SSH public key for user
       authorized_key:
-        user: admin3289
+        user: "{{ centos_user }}"
         key: "{{ lookup('file', '{{ key_path }}') }}"
         state: present
 
     - name: Add sudoer rule for local user
-      copy:
+      template:
         dest: /etc/sudoers.d/00-admin
-        src: files/admin.tpl
+        src: files/admin.j2
         owner: root
         group: root
         mode: 0440
@@ -102,7 +83,16 @@
         state: enabled
         immediate: yes
         permanent: yes
-
+    
+    - name: Add nginx ports 80 and 443 to public zone
+      firewalld:
+        zone: public
+        service: "{{ item }}"
+        state: enabled
+        immediate: yes
+        permanent: yes
+      loop: ["http", "https" ]
+    
     - name: Add permitted networks to internal zone
       firewalld:
         zone: internal
@@ -112,15 +102,15 @@
         permanent: yes
       loop: "{{ allowed_ssh_networks }}"
 
-    - name: Drop services from the public zone
-      firewalld:
-        zone: public
-        service: "{{ item }}"
-        state: disabled
-        immediate: yes
-        permanent: yes
-      loop: ["ssh", "dhcpv6-client", ]
-      ignore_errors: yes
+    # - name: Drop services from the public zone
+    #   firewalld:
+    #     zone: public
+    #     service: "{{ item }}"
+    #     state: disabled
+    #     immediate: yes
+    #     permanent: yes
+    #   loop: ["ssh", "dhcpv6-client", ]
+    #   ignore_errors: yes
 
     - name: Remove undesirable packages
       package:
@@ -135,46 +125,11 @@
       loop: "{{ unnecessary_services }}"
       ignore_errors: yes   
 
-    - name: test if SELinux is running
-      command: getenforce
-      register: sestatus
-      changed_when: false
-
-    - name: add epel repo
-      yum:
-        name: epel-release
-        state: present
-
     # - name: Add repository epel for RHEL7
     #   yum_repository:
     #     name: epel
     #     description: EPEL YUM repo
     #     baseurl: https://download.fedoraproject.org/pub/epel/$releasever/$basearch/
-
-    - name: add cache dir
-      file:
-        path: /opt/cache
-        state: directory
-
-    - name: install nginx
-      package:
-        name: nginx
-        state: latest
-      
-    - name: start nginx
-      service:
-        name: nginx
-        state: started
-        enabled: yes
-        
-    - name: Add nginx ports 80 and 443 to public zone
-      firewalld:
-        zone: public
-        service: "{{ item }}"
-        state: enabled
-        immediate: yes
-        permanent: yes
-      loop: ["http", "https" ]
 
     - name: delete unnecessary users
       user:
@@ -193,6 +148,9 @@
       loop:
         - /etc/issue
         - /etc/issue.net
+
+    - name: setup and hardening Nginx web server
+      import_tasks: nginx.yaml
     
 
   handlers:
@@ -201,7 +159,7 @@
       name: sshd
       state: reloaded
 
-  - name: restart nginx
+  - name: reload nginx
     service:
       name: nginx
-      state: restarted
+      state: reloaded

@@ -1,0 +1,42 @@
+# hardening Centos 7
+key_path: "{{ lookup('env','NGINX_KEY') }}"
+centos_user: "{{ lookup('env','NGINX_USER') }}"
+allowed_ssh_networks:
+  - 172.31.0.0/16
+unnecessary_services:
+  - postfix
+  - telnet
+  - rpcbind
+  - xinetd # 2.1.1 Ensure xinetd is not installed
+  - gdm # 1.10 Ensure GDM is removed
+  - at # 5.1.9 Ensure at is restricted to authorized users
+  
+unnecessary_software:
+  - tcpdump
+  - nmap-ncat
+  - wpa_supplicant
+
+unnecessary_users:
+  - postfix
+  - ftp
+  - nfsnobody
+  - games
+  - mail
+  - lp
+
+# nginx group vars
+unused_modules:
+  - http_dav_module
+
+listen_http: 80
+listen_https: 443
+nginx_user: nginx
+worker_processes: auto
+worker_connections: 512
+
+webserver_packages:
+  - nginx
+
+webserver_static_sites:
+    - name: site.example
+      root: /usr/share/nginx/site.example

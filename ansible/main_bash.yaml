@@ -1,0 +1,28 @@
+---
+- name: Hardening RHEL7 web server
+  hosts: all
+  become: yes
+
+
+  tasks:
+    - name: Update all software
+      shell: yum -y update && yum -y upgrade
+
+    - name: Add admin user
+      shell: useradd  -m -s /bin/bash  -U {{ centos_user }} || true
+
+    - name: add sudoer rule for admin user
+      shell: echo "{{ centos_user }} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/00-admin  && chmod 440 /etc/sudoers.d/00-admin
+    
+    - name: create folder for keys
+      shell: mkdir -p /home/{{ centos_user }}/.ssh/ \
+             && chown {{ centos_user }}:{{ centos_user }} /home/{{ centos_user }}/.ssh/ \
+             && chmod 700 /home/{{ centos_user }}/.ssh/
+    
+    - name: Add SSH public key for user
+      shell: echo "{{ lookup('file', '{{ key_path }}') }}" > authorized_keys \
+             && chmod 600 authorized_keys && chown {{ centos_user }}:{{ centos_user }} authorized_keys
+      args:
+        chdir: /home/{{ centos_user }}/.ssh/
+    
+# sed -i 's/.*ШАБЛОН.*/ЗАМЕНЯЮЩАЯ_СТРОКА/' ФАЙЛ

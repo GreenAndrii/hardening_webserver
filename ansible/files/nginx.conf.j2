@@ -1,12 +1,12 @@
 
-#user  nobody;
-worker_processes  1;
+user  {{ nginx_user }};
+worker_processes  {{ worker_processes }};
 
 #error_log  logs/error.log;
 #error_log  logs/error.log  notice;
 #error_log  logs/error.log  info;
 
-#pid        logs/nginx.pid;
+pid        logs/nginx.pid;
 
 
 events {
@@ -33,10 +33,11 @@ http {
     #gzip  on;
 
     server {
-        listen       80;
+        listen       {{ listen_http }};
         server_name  localhost;
-
-        #charset koi8-r;
+        
+        server_tokens off;
+        charset utf-8;
 
         #access_log  logs/host.access.log  main;
 
@@ -96,7 +97,7 @@ http {
     # HTTPS server
     
     server {
-        listen       443 ssl;
+        listen       {{ listen_https }} ssl;
         server_name  localhost;
 
         ssl_certificate      cert.pem;
